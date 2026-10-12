@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Infinity Player",
+    "slug": "infinity-player",
+    "version": "1.0.3",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "scheme": "infinityplayer",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "bundleIdentifier": "com.khalidalnashri.infinityplayer",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.khalidalnashri.infinityplayer",
+      "permissions": [
+        "INTERNET"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      "./plugins/withHttpSources"
+    ],
+    "extra": {
+      "supportEmail": "",
+      "privacyPolicyUrl": ""
+    }
+  }
+}
