@@ -2,7 +2,7 @@
   "expo": {
     "name": "Infinity Player",
     "slug": "infinity-player",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "default",
     "userInterfaceStyle": "dark",
     "scheme": "infinityplayer",
@@ -33,7 +33,11 @@
     ],
     "extra": {
       "supportEmail": "",
-      "privacyPolicyUrl": ""
-    }
+      "privacyPolicyUrl": "",
+      "eas": {
+        "projectId": "f911a3ca-7622-4171-a843-0c11e62967ad"
+      }
+    },
+    "owner": "levi22s-team"
   }
 }
