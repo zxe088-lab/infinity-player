@@ -1,4 +1,5 @@
-export const LIMIT = 30000;
+export const LIMIT = 100000;
+export const MAX_RESPONSE_BYTES = 48 * 1024 * 1024;
 export function httpsUrl(value, allowHTTP = false) {
   let url;
   try { url = new URL(String(value).trim()); } catch { throw new Error('أدخل رابطًا صحيحًا يبدأ بـ https://'); }
@@ -71,14 +72,14 @@ export async function requestText(url, fetcher = fetch, allowHTTP = false) {
     const r = await fetcher(url, {signal: controller.signal, redirect: 'error'});
     if (!r.ok) throw new Error('تعذّر الاتصال بالمصدر. تحقق من الرابط وصلاحية الاشتراك.');
     const length = Number(r.headers?.get('content-length') || 0);
-    if (length > 12 * 1024 * 1024) throw new Error('القائمة كبيرة جدًا. استخدم قائمة أصغر.');
+    if (length > MAX_RESPONSE_BYTES) throw new Error('حجم هذا التصنيف أكبر من سعة التحميل. اختر تصنيفًا أكثر تحديدًا.');
     const text = await r.text();
-    if (text.length > 12 * 1024 * 1024) throw new Error('القائمة كبيرة جدًا. استخدم قائمة أصغر.');
+    if (text.length > MAX_RESPONSE_BYTES) throw new Error('حجم هذا التصنيف أكبر من سعة التحميل. اختر تصنيفًا أكثر تحديدًا.');
     return text;
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('انتهت مهلة الاتصال. حاول مرة أخرى.');
     // Do not expose underlying networking errors containing account URLs.
-    if (/^(تعذّر|القائمة)/.test(e.message || '')) throw e;
+    if (/^(تعذّر|القائمة|حجم)/.test(e.message || '')) throw e;
     throw new Error('تعذّر الاتصال الآمن بالمصدر. تحقق من الشبكة والرابط.');
   } finally { clearTimeout(timer); }
 }
@@ -98,17 +99,24 @@ export async function validateProfile(p) {
     if (p.type === 'm3u') parseM3U(await requestText(p.url, fetch, p.allowHTTP === true), p.url, p.allowHTTP === true);
   }
 }
-export async function loadCatalog(p, kind) {
+export async function loadCategories(p, kind) {
+  const action={live:'get_live_categories',movie:'get_vod_categories',series:'get_series_categories'}[kind] || 'get_live_categories';
+  const rows=await requestJSON(apiUrl(p,action),p.allowHTTP===true);
+  if(!Array.isArray(rows)) throw new Error('تعذّر تحميل التصنيفات.');
+  return rows.filter(r=>r.category_id!=null).map(r=>({id:String(r.category_id),name:String(r.category_name||'عام')}));
+}
+export async function loadCatalog(p, kind, category = null) {
   if (p.type === 'direct') return {items:[{id:p.id, name:p.name, url:p.url, kind:'direct', group:'فيديو'}],skipped:0};
   if (p.type === 'm3u') return parseM3U(await requestText(p.url, fetch, p.allowHTTP === true), p.url, p.allowHTTP === true);
   const actions = {live: ['get_live_streams','get_live_categories'], movie:['get_vod_streams','get_vod_categories'], series:['get_series','get_series_categories']};
   const pair = actions[kind] || actions.live;
-  const [rows, cats] = await Promise.all([requestJSON(apiUrl(p,pair[0]), p.allowHTTP === true), requestJSON(apiUrl(p,pair[1]), p.allowHTTP === true).catch(() => [])]);
+  const [rows, cats] = await Promise.all([requestJSON(apiUrl(p,pair[0],category?{category_id:category.id}:{}), p.allowHTTP === true), requestJSON(apiUrl(p,pair[1]), p.allowHTTP === true).catch(() => [])]);
   if (!Array.isArray(rows)) throw new Error('المصدر لم يُرجع قائمة محتوى صالحة.');
   const groups = new Map((Array.isArray(cats)?cats:[]).map(c=>[String(c.category_id),String(c.category_name)]));
   return {items: rows.slice(0,LIMIT).filter(r=>/^\d+$/.test(String(r.stream_id ?? r.series_id))).map(r=>({
     id:String(r.stream_id ?? r.series_id), name:String(r.name || 'بدون عنوان'), kind,
-    group: groups.get(String(r.category_id)) || 'عام',
+    group: groups.get(String(r.category_id)) || category?.name || 'عام',
+    added:Number(r.added || r.last_modified || 0),
     artwork:validMediaUrl(r.stream_icon || r.cover || '',p.allowHTTP===true),
     extension:r.container_extension || (kind === 'live'?'m3u8':'mp4'),
     url:kind==='series'?null:streamUrl(p,kind,r.stream_id,r.container_extension || (kind==='live'?'m3u8':'mp4'))
